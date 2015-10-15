@@ -1,0 +1,10 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = true
+
+[hooks "post-receive-email"]
+sendmail = /usr/bin/msmtp
+mailinglist = mu.su@tinno.com,li.weiping@tinno.com
+envelopesender = li.weiping@tinno.com
+
