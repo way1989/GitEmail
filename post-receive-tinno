@@ -18,7 +18,7 @@ from email.mime.text import MIMEText
 from email.header import Header
 import time
 import commands
-import MySQLdb
+#import MySQLdb
 from ConfigParser import ConfigParser
 
 
@@ -31,9 +31,9 @@ def send_mail(config_parser, to_list=[], sub='', content='', appendix_file=''):
     """
 
     #设置服务器、用户名、口令及邮箱的后缀
-    mail_host = config_parser.get("email", "host").strip("'")
-    mail_user = config_parser.get("email", "username").strip("'")
-    mail_pass = config_parser.get("email", "password").strip("'")
+    mail_host = "smtp.tinno.com"
+    mail_user = "li.weiping@tinno.com"
+    mail_pass = "way@0508"
     #sender = config_parser.get("email", "sender").strip("'")
     sender = "tinnoscm@tinno.com"
     msg_root = MIMEMultipart()
@@ -181,7 +181,7 @@ if __name__ == "__main__":
         第四个参数是sqlite3 db文件的具体路径
     """
     git_path = os.getcwd()
-    #print git_path
+    print git_path
     argv = []
     for line in sys.stdin:
         line = line.strip()
@@ -192,25 +192,10 @@ if __name__ == "__main__":
     tag_name = argv[2].strip('\n')
 
     config_parser = ConfigParser()
-    try:
-        config_parser.read(os.path.expanduser('~/.git-serve/conf/git-serve.conf'))
-        hostname = config_parser.get('database', 'hostname').strip("'")
-        db_name = config_parser.get('database', 'db_name').strip("'")
-        username = config_parser.get('database', 'username').strip("'")
-        password = config_parser.get('database', 'password').strip("'")
-        localhost = config_parser.get('localhost', 'ip').strip("")
-    except IOError:
-        config_parser = None
-        localhost = 'localhost'
-        hostname = '172.16.20.162'
-        db_name = 'tup'
-        username = 'tup'
-        password = 'tup'
-        pass
 
-    repository_push_log(config_parser, git_path, tag_name, old_rev, new_rev, localhost, hostname, db_name, username, password)
-    notice_email_list = get_commit_notice_email_list(config_parser, localhost, git_path, tag_name, hostname, db_name, username, password)
-
+    #repository_push_log(config_parser, git_path, tag_name, old_rev, new_rev, localhost, hostname, db_name, username, password)
+    #notice_email_list = get_commit_notice_email_list(config_parser, localhost, git_path, tag_name, hostname, db_name, username, password)
+    notice_email_list = '1320438999@qq.com;way.ping.li@gmail.com'
     if notice_email_list:
         (result, short_info, commit_info) = get_commit_info(git_path, old_rev, new_rev)
         if result:
