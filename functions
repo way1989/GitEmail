@@ -85,7 +85,7 @@
 # "remotes/" will be ignored as well.
 #
 ##################################################
-set_new_commits() {
+function set_new_commits() {
 	nl=$'\n'
 
 	# Get all the current branches, not'd as we want only new ones
@@ -94,7 +94,6 @@ set_new_commits() {
 	# Strip off the not current branch
 	new_hash=$(git rev-parse $refname)
 	new_commits=${new_commits/^$new_hash/}
-
 	# Put back newrev without the not
 	new_commits=${new_commits}${nl}${newrev}
 
@@ -105,6 +104,14 @@ set_new_commits() {
 
 	new_commits=${new_commits/$nl$nl/$nl}
 	new_commits=${new_commits/#$nl/}
+
+	##yuanj 前面的代码有问题，从下面的开始
+	new_commits=${newrev}  
+	# Put in ^oldrev if it's not a new branch
+        if [ "$oldrev" != "0000000000000000000000000000000000000000" ] ; then
+                new_commits=${new_commits}${nl}^${oldrev}
+        fi
+
 }
 
 # Sets: $change_type
@@ -114,7 +121,7 @@ set_new_commits() {
 # 0000->1234 (create)
 # 1234->2345 (update)
 # 2345->0000 (delete)
-set_change_type() {
+function set_change_type() {
 	if [ "$oldrev" == "0000000000000000000000000000000000000000" ] ; then
 		change_type="create"
 	else
@@ -129,7 +136,7 @@ set_change_type() {
 # Sets: $newrev_type $oldrev_type $rev $rev_type
 # Assumes: $newrev $oldrev
 # --- Get the revision types
-set_rev_types() {
+function set_rev_types() {
 	newrev_type=$(git cat-file -t "$newrev" 2> /dev/null)
 	oldrev_type=$(git cat-file -t "$oldrev" 2> /dev/null)
 	if [ "$newrev" == "0000000000000000000000000000000000000000" ] ; then
@@ -145,7 +152,7 @@ set_rev_types() {
 # Assumes: $rev
 #
 # The email subject will contain the best description of the ref that we can build from the parameters
-set_describe() {
+function set_describe() {
 	rev_to_describe="$rev"
 	if [ "$1" != "" ] ; then
 		rev_to_describe="$1"
@@ -161,7 +168,7 @@ set_describe() {
 # Assumes: $rev
 #
 # The email subject will contain the best description of the ref that we can build from the parameters
-set_describe_tags() {
+function set_describe_tags() {
 	rev_to_describe="$rev"
 	if [ "$1" != "" ] ; then
 		rev_to_describe="$1"
@@ -179,35 +186,34 @@ set_describe_tags() {
 #
 # with_lock "foo.lock" "echo a"             # Works
 # with_lock "foo.lock" "echo b1 ; echo b2"  # Work
-# several() {
+# function several() {
 # echo several1 ; echo several2
 # }
 # with_lock "foo.lock" several              # Works
 #
-with_lock() {
+function with_lock() {
 	lockfile="$1"
 	block="$2"
 	with_lock_has_lock=1
 
 	trap with_lock_unlock_if_held INT TERM EXIT
-	# used to use lockfile to try multiple times but it's not always available
-	mkdir "$lockfile"
+	lockfile -1 -r 300 "$lockfile"
 	with_lock_has_lock=$?
 	if [ $with_lock_has_lock -ne 0 ] ; then
 		exit $?
 	fi
 	eval "$block"
-	rmdir "$lockfile"
+	rm -f "$lockfile"
 	with_lock_has_lock=1
 }
 
-with_lock_unlock_if_held() {
+function with_lock_unlock_if_held() {
 	if [[ "$with_lock_has_lock" -eq 0 ]] ; then
 		rm -f "$lockfile"
 	fi
 }
 
-display_error_message() {
+function display_error_message() {
 	echo "----------------------------------------------------" >&2
 	echo ""                                                     >&2
 	echo ""                                                     >&2

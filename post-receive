@@ -1,6 +1,10 @@
 #!/bin/bash
 export USER_EMAIL="Git <git@tinno.com>"
-#
+###############################################
+##     实现git的邮件通知功能的脚本
+##     另外functions为此脚本的搭配文件
+##
+###############################################
 # Copyright (c) 2007 Andy Parkins
 # Copyright (c) 2008 Stephen Haberman
 #
@@ -135,6 +139,7 @@ generate_email_header()
 {
 	# --- Email (all stdout will be the email)
 	# Generate header
+        describe_tags="  "  # yuanj
 	cat <<-EOF
 	From: $USER_EMAIL
 	To: $recipients
@@ -146,6 +151,11 @@ generate_email_header()
 
 	The $refname_type, $short_refname has been ${change_type}d
 	EOF
+        # yuanj : printf server address
+        echo -n "Server Address:  "
+        pwd
+       
+        echo ""
 }
 
 
@@ -156,6 +166,9 @@ generate_email_header()
 #
 generate_create_branch_email()
 {
+        ######################yuanj
+        ##echo "yuanjtest"
+        ##pwd 
 	# This is a new branch and so oldrev is not valid
 	git rev-list --pretty=format:"        at %h %s" --no-walk "$newrev" | grep -vP "^commit"
 
@@ -432,8 +445,10 @@ send_mail()
 {
 	if [ -n "$envelopesender" ] ; then
 		$sendmail -t -f "$envelopesender"
+                ##msmtp
 	else
-		$sendmail -t
+	        $sendmail -t
+                ##msmtp
 	fi
 }
 
@@ -450,14 +465,20 @@ if [ -z "$GIT_DIR" ]; then
 	echo >&2 "fatal: post-receive: GIT_DIR not set"
 	exit 1
 fi
+# yuanj: old cat repository name
+##projectdesc=$(sed -ne '1p' "$GIT_DIR/description")
+# yuanj new  cat repository name
 
-projectdesc=$(sed -ne '1p' "$GIT_DIR/description")
+projectdesc=${PWD##*/}
+
+
 # Shorten the description if it's the default
 if expr "$projectdesc" : "Unnamed repository.*$" >/dev/null ; then
 	projectdesc="UNNAMED"
 fi
 
 recipients=$(git config hooks.post-receive-email.mailinglist)
+##recipients=$(git config hooks.mailinglist)
 announcerecipients=$(git config hooks.post-receive-email.announcelist)
 envelopesender=$(git config hooks.post-receive-email.envelopesender)
 emailprefix="[$projectdesc]"
@@ -478,6 +499,8 @@ else
 		if [ "$debug" == "true" ] ; then
 			generate_email $oldrev $newrev $refname > "${refname//\//.}.out"
 		else
+			Edir=${PWD##*/}
+			Edate=`date  +%Y/%m/%d-%H:%M:%S`
 			generate_email $oldrev $newrev $refname | send_mail
 		fi
 	done
