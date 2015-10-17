@@ -2,8 +2,8 @@
 #-*- coding:utf-8 -*-
 
 """
-Created on 2013-5-7
-@author: changjie.fan
+Created on 2015-10-17
+@author: li.weiping
 GIT_DIR/hooks/post-receive-email钩子的实现
 设定项目更新后的通知邮件
 """
@@ -18,7 +18,7 @@ from email.mime.text import MIMEText
 from email.header import Header
 import time
 import commands
-import MySQLdb
+import sqlite3
 from ConfigParser import ConfigParser
 
 
@@ -37,11 +37,10 @@ def send_mail(config_parser, to_list=[], sub='', content='', appendix_file=''):
     sender = config_parser.get("email", "sender").strip("'")
     #mail_host = "smtp.tinno.com"
     #mail_user = "li.weiping@tinno.com"
-    #mail_pass = "way@0508"
-    #sender = "tinnoscm@tinno.com"
+    #mail_pass = "xxxxxx"
     #sender = "li.weiping@tinno.com"
     msg_root = MIMEMultipart()
-     #解决中文乱码
+    #解决中文乱码
     att_text = MIMEText(content, 'html', 'UTF-8')
     #添加邮件正文
     msg_root.attach(att_text)
@@ -108,73 +107,58 @@ def get_commit_info(git_path='', old_rev='', new_rev=''):
         return True, short_info, '<br/>'.join(result)
 
 
-def get_commit_notice_email_list(config_parser, repo_server_ip='', git_path='', tag_name='', host_ip='',
-                                 db_name='', user_name='', password=''):
+def get_commit_notice_email_list(config_parser, git_path='', tag_name='', db_name='', repositories=''):
     """
         获取项目的设置信息
     """
     email_address_list = ''
     try:
-        conn = MySQLdb.connect(host=host_ip, db=db_name, user=user_name, passwd=password)
-        cursor = conn.cursor()
+	#查找平台的配置
+	platform_name = git_path.split(repositories)[1]
+        conn = sqlite3.connect(db_name)
+	cursor = conn.cursor()
+	#数据库中的仓库名 + "___" + 分支名，支持分支管理邮箱地址
+	project_tag = os.path.basename(platform_name) + '___' + tag_name
+	#print project_tag
         #具体仓库的配置
-        repository_query_sql = 'SELECT email_address FROM repository_commit_notice WHERE reference_name="%s" ' \
-                               'AND repository_server_ip="%s" AND repository_path="%s" AND active=1 ' % \
-                               (tag_name, repo_server_ip, git_path)
+        repository_query_sql = 'SELECT mail_list FROM project_config WHERE project_tag="%s" ' % \
+                               (project_tag)
         cursor.execute(repository_query_sql)
         email_address_list = cursor.fetchone()
+	#print email_address_list
         if email_address_list:
             email_address_list = email_address_list[0]
-        else:
-            #查找平台的配置
-            platform_name = git_path.split('/home/git/repositories/')[1]
-            platform_name = platform_name[:platform_name.find('/')]
-            platform_query_sql = 'SELECT email_address FROM repository_commit_notice WHERE reference_name="%s" ' \
-                                 'AND repository_server_ip="%s" AND platform_name="%s" AND active=1 ' % \
-                                 (tag_name, repo_server_ip, platform_name)
-            cursor.execute(platform_query_sql)
-            email_address_list = cursor.fetchone()
-            if email_address_list:
-                email_address_list = email_address_list[0]
-            else:
-                #原来直接用引用配置的实现
-                old_query_sql = 'SELECT email_address FROM repository_commit_notice WHERE ' \
-                                'reference_name="%s"  AND active=1 ' % tag_name
-                cursor.execute(old_query_sql)
-                email_address_list = cursor.fetchone()
-                if email_address_list:
-                    email_address_list = email_address_list[0]
-
         cursor.close()
         conn.close()
-    except MySQLdb.Error, e:
+    except sqlite3.Error, e:
+	#print e
         send_mail(config_parser, ["li.weiping@tinno.com"], "提交的邮件通知发送失败", '连接Tup数据库失败')
 
     return email_address_list
 
 
-def repository_push_log(config_parser, repo_path='', reference='', old_rev='', new_rev='', local_ip='',
-                        host_ip='', db_name='', user_name='', password=''):
-    """推送日志记入数据库中便于tsds解析
+def repository_push_log(config_parser, repo_path='', reference='', old_rev='', new_rev='', db_name=''):
+    """
+	推送日志记入数据库中便于tsds解析
     """
 
     date_format = '%Y-%m-%d %H:%M:%S'
     now = time.strftime(date_format, time.localtime())
     try:
-        conn = MySQLdb.connect(host=host_ip, db=db_name, user=user_name, passwd=password)
+        conn = sqlite.connect(db_name)
         cursor = conn.cursor()
-        sql = "insert into repository_push_log set server_ip='%s',repository_path='%s',reference='%s',status=0," \
+        sql = "insert into repository_push_log set repository_path='%s',reference='%s',status=0," \
               "create_time='%s',old_revision='%s',new_revision='%s'" \
-              % (local_ip, repo_path, reference, now, old_rev, new_rev)
+              % (repo_path, reference, now, old_rev, new_rev)
 
         cursor.execute(sql)
         conn.commit()
         cursor.close()
         conn.close()
-    except MySQLdb.Error, e:
+    except sqlite.Error, e:
         send_mail(config_parser, ["li.weiping@tinno.com"], "Tup数据库记录Push history失败",
-                  'Git服务器Ip:%s<br>git仓库路径:%s<br>git分支:%s<br>更新时间:%s' %
-                  (local_ip, repo_path, reference, now))
+                  'Git服务器仓库路径:%s<br>git分支:%s<br>更新时间:%s' %
+                  (repo_path, reference, now))
 
 
 if __name__ == "__main__":
@@ -185,6 +169,7 @@ if __name__ == "__main__":
         第四个参数是sqlite3 db文件的具体路径
     """
     git_path = os.getcwd()
+    #git_path = '/home/android/test.git'
     #print git_path
     argv = []
     for line in sys.stdin:
@@ -194,31 +179,29 @@ if __name__ == "__main__":
     old_rev = argv[0].strip()
     new_rev = argv[1].strip()
     tag_name = argv[2].strip('\n')
+    #old_rev = '9c1287a3cbb87cff82b126ffa339ba26ffe35f55'
+    #new_rev = '354db5b7535d7ccdab51b74804305358e53f89f9'
+    #tag_name = 'refs/heads/master'
 
     config_parser = ConfigParser()
-    #try:
-    config_parser.read(os.path.expanduser('~/.git-serve/conf/git-serve.conf'))
-    #    hostname = config_parser.get('database', 'hostname').strip("'")
-    #    db_name = config_parser.get('database', 'db_name').strip("'")
-    #    username = config_parser.get('database', 'username').strip("'")
-    #    password = config_parser.get('database', 'password').strip("'")
-    #    localhost = config_parser.get('localhost', 'ip').strip("")
-    #except IOError:
-    #    config_parser = None
-    #    localhost = 'localhost'
-    #    hostname = '172.16.20.162'
-    #    db_name = 'tup'
-    #    username = 'tup'
-    #    password = 'tup'
-    #    pass
+    try:
+    	config_parser.read(os.path.expanduser('~/git-serve.conf'))
+        db_name = config_parser.get('database', 'db_name').strip("'")
+        repositories = config_parser.get('repositories', 'repositories').strip("'")
+    except IOError:
+        config_parser = None
+        db_name = '/home/git/emailconf.db'
+        repositories = '/home/git/repositories/'
 
     #repository_push_log(config_parser, git_path, tag_name, old_rev, new_rev, localhost, hostname, db_name, username, password)
-    #notice_email_list = get_commit_notice_email_list(config_parser, localhost, git_path, tag_name, hostname, db_name, username, password)
-    notice_email_list = config_parser.get('email', 'mailinglist').strip("'")
+    notice_email_list = get_commit_notice_email_list(config_parser, git_path, tag_name, db_name, repositories)
+    #print notice_email_list
+    #notice_email_list = config_parser.get('email', 'mailinglist').strip("'")
+
     if notice_email_list:
         (result, short_info, commit_info) = get_commit_info(git_path, old_rev, new_rev)
         if result:
-            git_path = git_path.split('/home/git/repositories/')[1]
+            git_path = git_path.split(repositories)[1]
             commit_info = '\n'.join([git_path, commit_info])
             title = os.path.basename(git_path) + '___' + tag_name+"___项目更新通知邮件"
             if short_info:
